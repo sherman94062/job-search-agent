@@ -21,14 +21,15 @@ export function printBanner(): void {
   console.log();
   console.log(paint(c.bold + c.cyan,  "  Job Search Agent"));
   console.log(paint(c.gray,           `  model  : ${CONFIG.MODEL}`));
-  console.log(paint(c.gray,           `  source : Remotive (remote jobs, no API key required)`));
-  console.log(paint(c.gray,           `  exit   : type 'exit' or press Ctrl+C`));
+  console.log(paint(c.gray,           `  source   : Remotive (remote jobs, no API key required)`));
+  console.log(paint(c.gray,           `  defaults : ${CONFIG.DEFAULT_JOB_TITLE} · ${CONFIG.DEFAULT_LOCATION} · ${CONFIG.DEFAULT_JOB_TYPE}`));
+  console.log(paint(c.gray,           `  exit     : type 'exit' or press Ctrl+C`));
   console.log();
   console.log(paint(c.dim,            "  Example queries:"));
-  console.log(paint(c.dim,            "    find senior ML engineer roles"));
-  console.log(paint(c.dim,            "    typescript AI agent jobs paying over 150k"));
+  console.log(paint(c.dim,            "    find me jobs  (uses defaults)"));
+  console.log(paint(c.dim,            "    senior ML engineer roles in San Francisco"));
+  console.log(paint(c.dim,            "    typescript AI agent contract jobs"));
   console.log(paint(c.dim,            "    show me details for job #1234"));
-  console.log(paint(c.dim,            "    what categories are available?"));
   console.log();
 }
 
@@ -71,8 +72,15 @@ export function handleDelta(event: DeltaEvent): void {
 }
 
 export function printUsage(usage: { input_tokens: number; output_tokens: number }): void {
+  const inputCost  = (usage.input_tokens  / 1_000_000) * CONFIG.PRICE_INPUT_PER_M;
+  const outputCost = (usage.output_tokens / 1_000_000) * CONFIG.PRICE_OUTPUT_PER_M;
+  const totalCost  = inputCost + outputCost;
+  const costStr    = totalCost < 0.001
+    ? `< $0.001`
+    : `$${totalCost.toFixed(4)}`;
+
   process.stdout.write(
-    paint(c.gray, `\n  [↑${usage.input_tokens} ↓${usage.output_tokens} tokens]\n\n`),
+    paint(c.gray, `\n  [↑${usage.input_tokens} ↓${usage.output_tokens} tokens · ${costStr}]\n\n`),
   );
 }
 

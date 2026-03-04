@@ -19,14 +19,43 @@ function stripHtml(html: string): string {
     .trim();
 }
 
+/**
+ * Returns true if a job's location field is compatible with the requested location.
+ * Worldwide/USA-open roles always match a US-based location filter.
+ */
+function matchesLocation(jobLocation: string, filter: string): boolean {
+  const loc = jobLocation.toLowerCase();
+  const f   = filter.toLowerCase();
+
+  if (!loc || loc.includes("worldwide") || loc.includes("anywhere") || loc.includes("global")) return true;
+  if (loc.includes(f)) return true;
+
+  // USA-based filter — accept roles open to the US
+  const filterIsUSA =
+    f.includes("texas") || f.includes("austin") ||
+    f.includes("usa") || f.includes("united states");
+  if (filterIsUSA) {
+    const usaTerms = ["usa", "united states", "us only", "north america", "americas", "remote us"];
+    return usaTerms.some((t) => loc.includes(t));
+  }
+
+  return false;
+}
+
 function formatJobSummary(job: JobListing, index: number): string {
-  const salary = job.salary || "salary not listed";
+  const salary   = job.salary || "salary not listed";
   const location = job.candidate_required_location || "location not specified";
-  const tags = job.tags.slice(0, 6).join(", ") || "no tags";
-  const posted = new Date(job.publication_date).toLocaleDateString("en-US", {
+  const tags     = job.tags.slice(0, 6).join(", ") || "no tags";
+  const posted   = new Date(job.publication_date).toLocaleDateString("en-US", {
     month: "short", day: "numeric", year: "numeric",
   });
-  return `${index + 1}. [ID:${job.id}] ${job.title} — ${job.company_name}\n   ${salary} | ${location} | ${job.job_type}\n   Tags: ${tags}\n   Posted: ${posted}\n   URL: ${job.url}`;
+  return (
+    `${index + 1}. [ID:${job.id}] ${job.title} — ${job.company_name}\n` +
+    `   ${salary} | ${location} | ${job.job_type}\n` +
+    `   Tags: ${tags}\n` +
+    `   Posted: ${posted}\n` +
+    `   URL: ${job.url}`
+  );
 }
 
 export const searchJobsTool: RegisteredTool = {
@@ -45,8 +74,20 @@ export const searchJobsTool: RegisteredTool = {
         category: {
           type: "string",
           description:
-            "Optional Remotive category slug to narrow results: " +
+            "Optional Remotive category slug: " +
             "'software-dev', 'ai-ml', 'devops-sysadmin', 'data-analysis', 'product', 'design', 'marketing', 'customer-support'",
+        },
+        location_filter: {
+          type: "string",
+          description:
+            "Filter results to jobs available from this location. " +
+            "Worldwide and USA-open roles are always included for US locations. " +
+            "Default: 'Austin, Texas'",
+        },
+        job_type: {
+          type: "string",
+          description:
+            "Filter by employment type: 'full_time', 'contract', 'freelance', 'part_time'. Default: 'full_time'",
         },
         limit: {
           type: "number",
@@ -58,9 +99,11 @@ export const searchJobsTool: RegisteredTool = {
   },
 
   async execute(input) {
-    const query = String(input["query"] ?? "").trim();
-    const category = input["category"] ? String(input["category"]) : undefined;
-    const limit = Math.min(Number(input["limit"] ?? 10), 20);
+    const query          = String(input["query"] ?? "").trim();
+    const category       = input["category"]        ? String(input["category"])        : undefined;
+    const locationFilter = input["location_filter"] ? String(input["location_filter"]) : CONFIG.DEFAULT_LOCATION;
+    const jobType        = input["job_type"]        ? String(input["job_type"])        : CONFIG.DEFAULT_JOB_TYPE;
+    const limit          = Math.min(Number(input["limit"] ?? 10), 20);
 
     const url = new URL(CONFIG.REMOTIVE_BASE_URL);
     url.searchParams.set("search", query);
@@ -75,9 +118,16 @@ export const searchJobsTool: RegisteredTool = {
       return `Network error: ${err instanceof Error ? err.message : String(err)}`;
     }
 
-    const jobs = data.jobs.slice(0, limit);
+    // Client-side filters for location and job type
+    let jobs = data.jobs.filter((j) => matchesLocation(j.candidate_required_location, locationFilter));
+    if (jobType) jobs = jobs.filter((j) => !j.job_type || j.job_type === jobType);
+    jobs = jobs.slice(0, limit);
+
     if (jobs.length === 0) {
-      return `No jobs found for "${query}"${category ? ` in category "${category}"` : ""}. Try broader keywords or a different category.`;
+      return (
+        `No jobs found for "${query}" matching location "${locationFilter}" and type "${jobType}". ` +
+        `Try broader keywords, a different category, or remove filters.`
+      );
     }
 
     // Cache full listings for get_job_details

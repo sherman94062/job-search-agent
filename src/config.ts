@@ -23,6 +23,15 @@ export const CONFIG = {
   MAX_TOKENS: 8192,
   MAX_TOOL_ITERATIONS: 6,
   REMOTIVE_BASE_URL: "https://remotive.com/api/remote-jobs",
+
+  // Default search preferences (user can override per query)
+  DEFAULT_LOCATION:  "Austin, Texas",
+  DEFAULT_JOB_TYPE:  "full_time",
+  DEFAULT_JOB_TITLE: "Forward Deployed Engineer",
+
+  // Pricing for claude-sonnet-4-6 ($ per million tokens)
+  PRICE_INPUT_PER_M:  3.00,
+  PRICE_OUTPUT_PER_M: 15.00,
 } as const;
 
 if (!CONFIG.ANTHROPIC_API_KEY) {
